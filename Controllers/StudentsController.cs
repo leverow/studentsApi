@@ -1,6 +1,8 @@
 using System;
 using Microsoft.AspNetCore.Mvc;
+using studentsApi.Data;
 using studentsApi.Model;
+using studentsApi.Services;
 
 namespace studentsApi.Controllers;
 
@@ -8,6 +10,18 @@ namespace studentsApi.Controllers;
 [Route("api/[controller]")]
 public class StudentsController: ControllerBase
 {
+    private readonly AppDbContext _context;
+    private readonly IStudentService _service;
+
+    public StudentsController(
+        AppDbContext context,
+        IStudentService service
+    )
+    {
+        _context = context;
+        _service = service;
+    }
+
     private static List<Entity.Student> _students = new List<Entity.Student>()
     {
         new Entity.Student{
@@ -19,48 +33,48 @@ public class StudentsController: ControllerBase
     };
 
     [HttpPost]
-    public IActionResult CreateStudent([FromForm]Model.Student studentModel)
+    public async Task<IActionResult> CreateStudentAsync([FromForm]Model.Student studentModel)
+    {
+        await _service.CreateStudentAsync(studentModel);
+        return Created("api/[controller]", studentModel);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetStudents()
+    {
+        var result = (await _service.GetStudentsAsnyc());
+        if(result.IsSuccess) return Ok(result.studentsList);
+        else return BadRequest($"Error occured: {result.ErrorMessage}");
+    }
+
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetStudentAsync([FromRoute]Guid id)
+    {
+        var result = await _service.GetStudentByIdAsync(id);
+        if(result.IsSuccess) return Ok(result.student);
+        else return BadRequest($"Error occured: {result.ErrorMessage}");
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateStudent([FromRoute]Guid id, [FromForm]Model.Student studentModel)
     {
         var student = new Entity.Student()
         {
-            Id = Guid.NewGuid(),
+            Id = id,
             Name = studentModel.Name,
             Grade = studentModel.Grade,
             BirthDate = studentModel.BirthDate
         };
-        _students.Add(student);
-        return Created("api/[controller]", student);
-    }
-
-    [HttpGet]
-    public IActionResult GetStudents()
-        => Ok(_students);
-
-    [HttpGet("{id}")]
-    public IActionResult GetStudent([FromRoute]Guid id)
-    {
-        var student = _students.FirstOrDefault(b => b.Id == id);
-        if(student == default) return NotFound("Student not found");
-        return Ok(student);
-    }
-
-    [HttpPut("{id}")]
-    public IActionResult UpdateStudent([FromRoute]Guid id, [FromForm]Model.Student student)
-    {
-        var old = _students.FirstOrDefault(b => b.Id == id);
-        if(old == default) return NotFound("Student not found");
-        old.Name = student.Name;
-        old.Grade = student.Grade;
-        old.BirthDate = student.BirthDate;
-        return Accepted();
+        var result = await _service.UpdateStudentAsync(student);
+        if(result.IsSuccess) return Accepted();
+        else return BadRequest($"Error occured: {result.ErrorMessage}");
     }
 
     [HttpDelete("{id}")]
-    public IActionResult DeleteStudent([FromQuery]Guid id)
+    public async Task<IActionResult> DeleteStudent([FromRoute]Guid id)
     {
-        var student = _students.FirstOrDefault(b => b.Id == id);
-        if(student == default) return NotFound("Student not found");
-        _students.Remove(student);
-        return Accepted();
+        var result = await _service.DeleteStudentAsync(id);
+        if(result.IsSuccess) return Accepted();
+        else return BadRequest($"Error occure: {result.ErrorMessage}");
     }
 }
